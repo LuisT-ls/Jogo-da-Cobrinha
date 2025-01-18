@@ -129,13 +129,13 @@ class Game:
                         self.state = GameState.PLAYING
 
                 elif self.state == GameState.PLAYING:
-                    if event.key == pygame.K_UP and self.snake_dir != "DOWN":
+                    if (event.key == pygame.K_UP or event.key == pygame.K_w) and self.snake_dir != "DOWN":
                         self.change_to = "UP"
-                    elif event.key == pygame.K_DOWN and self.snake_dir != "UP":
+                    elif (event.key == pygame.K_DOWN or event.key == pygame.K_s) and self.snake_dir != "UP":
                         self.change_to = "DOWN"
-                    elif event.key == pygame.K_LEFT and self.snake_dir != "RIGHT":
+                    elif (event.key == pygame.K_LEFT or event.key == pygame.K_a) and self.snake_dir != "RIGHT":
                         self.change_to = "LEFT"
-                    elif event.key == pygame.K_RIGHT and self.snake_dir != "LEFT":
+                    elif (event.key == pygame.K_RIGHT or event.key == pygame.K_d) and self.snake_dir != "LEFT":
                         self.change_to = "RIGHT"
 
                 elif self.state == GameState.GAME_OVER:

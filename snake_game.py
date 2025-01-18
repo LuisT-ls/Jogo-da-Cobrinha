@@ -91,17 +91,23 @@ class Game:
     def __init__(self):
         self.state = GameState.MENU
         self.high_score = load_high_score()
-        self.power_up = PowerUp()  # Movido para antes de reset_game
+        self.power_up = PowerUp()
+        self.base_speed = 10
+        self.max_speed = 25
+        self.speed_increment = 0.25
+        self.food_spawn_threshold = 40
+        self.food_positions = []
         self.reset_game()
 
     def reset_game(self):
         self.snake_pos = [[100, 50]]
         self.snake_dir = "RIGHT"
         self.change_to = self.snake_dir
-        self.food_pos = self.generate_food_position()
         self.score = 0
-        self.speed = 10
+        self.speed = self.base_speed
         self.power_up.reset()
+        self.food_positions = []
+        self.food_positions.append(self.generate_food_position())
 
     def generate_food_position(self):
         while True:
@@ -109,7 +115,9 @@ class Game:
                 random.randrange(1, (WIDTH // BLOCK_SIZE)) * BLOCK_SIZE,
                 random.randrange(1, (HEIGHT // BLOCK_SIZE)) * BLOCK_SIZE,
             ]
-            if pos not in self.snake_pos:
+            if pos not in self.snake_pos and (
+                not self.food_positions or pos not in self.food_positions
+            ):
                 return pos
 
     def handle_input(self):
@@ -129,13 +137,21 @@ class Game:
                         self.state = GameState.PLAYING
 
                 elif self.state == GameState.PLAYING:
-                    if (event.key == pygame.K_UP or event.key == pygame.K_w) and self.snake_dir != "DOWN":
+                    if (
+                        event.key == pygame.K_UP or event.key == pygame.K_w
+                    ) and self.snake_dir != "DOWN":
                         self.change_to = "UP"
-                    elif (event.key == pygame.K_DOWN or event.key == pygame.K_s) and self.snake_dir != "UP":
+                    elif (
+                        event.key == pygame.K_DOWN or event.key == pygame.K_s
+                    ) and self.snake_dir != "UP":
                         self.change_to = "DOWN"
-                    elif (event.key == pygame.K_LEFT or event.key == pygame.K_a) and self.snake_dir != "RIGHT":
+                    elif (
+                        event.key == pygame.K_LEFT or event.key == pygame.K_a
+                    ) and self.snake_dir != "RIGHT":
                         self.change_to = "LEFT"
-                    elif (event.key == pygame.K_RIGHT or event.key == pygame.K_d) and self.snake_dir != "LEFT":
+                    elif (
+                        event.key == pygame.K_RIGHT or event.key == pygame.K_d
+                    ) and self.snake_dir != "LEFT":
                         self.change_to = "RIGHT"
 
                 elif self.state == GameState.GAME_OVER:
@@ -176,22 +192,37 @@ class Game:
             head_y = 0
 
         # Inserir nova posição da cabeça
-        self.snake_pos.insert(0, [head_x, head_y])
+        new_head_pos = [head_x, head_y]
+        self.snake_pos.insert(0, new_head_pos)
+
+        # Verificar se precisa adicionar segunda comida
+        if len(self.food_positions) == 1 and self.score >= self.food_spawn_threshold:
+            self.food_positions.append(self.generate_food_position())
 
         # Verificar colisão com comida
-        if self.snake_pos[0] == self.food_pos:
-            points = (
-                2
-                if self.power_up.type == "double_points" and self.power_up.active
-                else 1
-            )
-            self.score += points
-            self.food_pos = self.generate_food_position()
+        ate_food = False
+        for food_pos in self.food_positions[:]:  # Usar uma cópia da lista para iterar
+            if new_head_pos == food_pos:
+                self.food_positions.remove(food_pos)
+                self.food_positions.append(self.generate_food_position())
+                points = (
+                    2
+                    if self.power_up.type == "double_points" and self.power_up.active
+                    else 1
+                )
+                self.score += points
 
-            # 20% de chance de spawnar power-up
-            if random.random() < 0.2:
-                self.power_up.spawn()
-        else:
+                # Aumentar a velocidade baseada na pontuação
+                new_speed = self.base_speed + (self.score * self.speed_increment)
+                self.speed = min(new_speed, self.max_speed)
+
+                ate_food = True
+
+                # 20% de chance de spawnar power-up
+                if random.random() < 0.2:
+                    self.power_up.spawn()
+
+        if not ate_food:
             self.snake_pos.pop()
 
         # Verificar colisão com power-up
@@ -203,6 +234,9 @@ class Game:
         if self.power_up.start_time > 0:
             if self.power_up.check_duration(self):
                 self.power_up.start_time = 0
+                # Após o power-up terminar, recalcular a velocidade base
+                new_speed = self.base_speed + (self.score * self.speed_increment)
+                self.speed = min(new_speed, self.max_speed)
 
         # Verificar colisão com o próprio corpo
         for block in self.snake_pos[1:]:
@@ -275,12 +309,13 @@ class Game:
                         eye_size,
                     )
 
-        # Desenhar comida
-        pygame.draw.rect(
-            screen,
-            RED,
-            pygame.Rect(self.food_pos[0], self.food_pos[1], BLOCK_SIZE, BLOCK_SIZE),
-        )
+        # Desenhar todas as comidas
+        for food_pos in self.food_positions:
+            pygame.draw.rect(
+                screen,
+                RED,
+                pygame.Rect(food_pos[0], food_pos[1], BLOCK_SIZE, BLOCK_SIZE),
+            )
 
         # Desenhar power-up se ativo
         if self.power_up.active:
@@ -300,7 +335,7 @@ class Game:
         # Exibir pontuação
         font = pygame.font.SysFont("arial", 20)
         score_text = font.render(
-            f"Score: {self.score} | High Score: {self.high_score} | Speed: {self.speed}",
+            f"Score: {self.score} | High Score: {self.high_score} | Speed: {self.speed:.1f}",
             True,
             WHITE,
         )
